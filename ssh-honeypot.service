@@ -1,0 +1,100 @@
+[Unit]
+Description=SSH Honeypot Service
+Documentation=https://github.com/yourusername/ssh-honeypot
+After=network.target
+Wants=network.target
+# Ensure honeypot.py exists before starting
+ConditionPathExists=/opt/ssh-honeypot/honeypot.py
+# Optional: wait for network to be fully ready
+ConditionPathIsDirectory=/sys/class/net
+
+[Service]
+Type=simple
+
+# Option A: Run as dedicated user (RECOMMENDED - but needs setup)
+User=honeypot
+Group=honeypot
+
+# Option B: Run as nobody (safer than root, exists by default)
+# User=nobody
+# Group=nogroup
+
+# Option C: Run as root (simplest for honeypot testing)
+# User=root
+# Group=root
+
+WorkingDirectory=/opt/ssh-honeypot
+ExecStart=/usr/bin/python3 /opt/ssh-honeypot/honeypot.py
+# Graceful reload handler
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Restart policy - auto-recover from crashes
+Restart=on-failure
+RestartSec=5s
+# Prevent rapid restart loops
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# -------- Security Hardening (SAFE VERSION) --------
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+
+# Filesystem protection
+ProtectSystem=strict
+ProtectHome=true
+ProtectHostname=true
+
+# Allow writing to logs directory only
+ReadWritePaths=/opt/ssh-honeypot/logs
+# Allow reading honeypot directory
+ReadOnlyPaths=/opt/ssh-honeypot
+# Explicitly allow SSH host key access
+BindReadOnlyPaths=/opt/ssh-honeypot/ssh_host_rsa_key
+# Allow Python interpreter and libraries
+BindReadOnlyPaths=/usr/bin/python3
+BindReadOnlyPaths=/usr/lib/python3
+BindReadOnlyPaths=/usr/local/lib/python3
+
+# Kernel protection
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Network - allow only IPv4 and IPv6 (SSH)
+RestrictAddressFamilies=AF_INET AF_INET6
+
+# Allow binding to port 2222 (privileged port < 1024)
+# If using port > 1024 (like 22222), you can remove this
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Prevent some exploits
+LockPersonality=true
+MemoryDenyWriteExecute=true
+# Allow common system calls for Python/SSH
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+
+# Process restrictions
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+
+# Resource limits to prevent DoS
+LimitNOFILE=10240
+LimitNPROC=512
+LimitCORE=0
+
+# Logging configuration
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ssh-honeypot
+# Rate limit logs to prevent flooding
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=1000
+
+[Install]
+WantedBy=multi-user.target
+# Optional alias for easier management
+Alias=ssh-honeypot.service
