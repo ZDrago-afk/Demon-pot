@@ -20,14 +20,15 @@ This project is intended for educational and research purposes only.
 
 ## 📂 Project Structure
 
-ssh-honeypot/
-├── honeypot.py
-├── install.sh
-├── ssh-honeypot.service
-├── requirements.txt
-├── README.md
-├── LICENSE
-└── .gitignore
+| File | Purpose |
+|------|---------|
+| `honeypot.py` | Main SSH honeypot script |
+| `install.sh` | Installation/setup script |
+| `ssh-honeypot.service` | Systemd service file for automatic startup |
+| `requirements.txt` | Python dependencies |
+| `README.md` | Project documentation |
+| `LICENSE` | License information |
+| `.gitignore` | Git ignore file to exclude logs and caches |
 
 ---
 
@@ -53,3 +54,4 @@ This project is for educational and research purposes only.
 Do NOT deploy on production systems or expose to sensitive networks.
 
 The author is not responsible for misuse of this software.
+
