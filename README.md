@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="pictures/demon_pot.png" alt="Demon-Pot Logo" width="300">
+</p>
 # Demon-pot (Paramiko-based SSH Honeypot)
 
 A simple SSH honeypot built using Python and Paramiko.  
@@ -54,5 +57,6 @@ This project is for educational and research purposes only.
 Do NOT deploy on production systems or expose to sensitive networks.
 
 The author is not responsible for misuse of this software.
+
 
 
