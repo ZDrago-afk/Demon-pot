@@ -1,4 +1,4 @@
-# SSH Honeypot (Paramiko-based)
+# Demon-pot (Paramiko-based SSH Honeypot)
 
 A simple SSH honeypot built using Python and Paramiko.  
 It simulates a fake Linux environment to capture attacker activity such as
@@ -54,4 +54,5 @@ This project is for educational and research purposes only.
 Do NOT deploy on production systems or expose to sensitive networks.
 
 The author is not responsible for misuse of this software.
+
 
