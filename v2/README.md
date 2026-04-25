@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="pictures/demon_pot.png" alt="Demon-Pot Logo" width="300">
+  <img src="../pictures/demon_pot.png" alt="Demon-Pot Logo" width="300">
 </p>
 
 # Demon-Pot (Paramiko-based SSH Honeypot)
