@@ -1,0 +1,127 @@
+# ─────────────────────────────────────────────────────────────
+#  Demon-Pot — Filebeat Configuration
+#  Ships all honeypot JSONL logs to Elasticsearch / Splunk
+# ─────────────────────────────────────────────────────────────
+
+filebeat.inputs:
+
+  # ── Session records (full session with all commands) ───────
+  - type: log
+    id: demon-pot-sessions
+    enabled: true
+    paths:
+      - /logs/sessions.jsonl
+    json.keys_under_root: true
+    json.add_error_key: true
+    json.expand_keys: true
+    fields:
+      stream: sessions
+      honeypot: demon-pot
+    fields_under_root: true
+    multiline.type: pattern
+    multiline.pattern: '^\{'
+    multiline.negate: true
+    multiline.match: after
+
+  # ── Credential attempts ─────────────────────────────────────
+  - type: log
+    id: demon-pot-credentials
+    enabled: true
+    paths:
+      - /logs/credentials.jsonl
+    json.keys_under_root: true
+    json.add_error_key: true
+    fields:
+      stream: credentials
+      honeypot: demon-pot
+    fields_under_root: true
+
+  # ── Individual commands ─────────────────────────────────────
+  - type: log
+    id: demon-pot-commands
+    enabled: true
+    paths:
+      - /logs/commands.jsonl
+    json.keys_under_root: true
+    json.add_error_key: true
+    fields:
+      stream: commands
+      honeypot: demon-pot
+    fields_under_root: true
+
+  # ── Threat intelligence enrichment output ──────────────────
+  - type: log
+    id: demon-pot-intel
+    enabled: true
+    paths:
+      - /output/enriched.jsonl
+    json.keys_under_root: true
+    json.add_error_key: true
+    fields:
+      stream: threat_intel
+      honeypot: demon-pot
+    fields_under_root: true
+
+# ── Processors (applied to all events) ─────────────────────
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_docker_metadata: ~
+  - timestamp:
+      field: timestamp
+      layouts:
+        - '2006-01-02 15:04:05.999999'
+        - '2006-01-02T15:04:05Z'
+      test:
+        - '2024-01-15 10:23:45.123456'
+  - drop_fields:
+      fields: ["agent.ephemeral_id", "log.offset"]
+      ignore_missing: true
+
+# ── Output: Elasticsearch ───────────────────────────────────
+output.elasticsearch:
+  hosts:
+    - "${ELASTICSEARCH_HOST:http://elasticsearch:9200}"
+  username: "${ELASTICSEARCH_USER:elastic}"
+  password: "${ELASTICSEARCH_PASS:changeme}"
+  protocol: "https"
+  ssl.verification_mode: "none"
+
+  # Index naming — one index per stream per day
+  indices:
+    - index: "demon-pot-sessions-%{+yyyy.MM.dd}"
+      when.equals:
+        stream: "sessions"
+    - index: "demon-pot-credentials-%{+yyyy.MM.dd}"
+      when.equals:
+        stream: "credentials"
+    - index: "demon-pot-commands-%{+yyyy.MM.dd}"
+      when.equals:
+        stream: "commands"
+    - index: "demon-pot-intel-%{+yyyy.MM.dd}"
+      when.equals:
+        stream: "threat_intel"
+    - index: "demon-pot-misc-%{+yyyy.MM.dd}"
+
+  # Retry / resilience settings
+  bulk_max_size: 512
+  worker: 2
+  compression_level: 3
+
+# ── Kibana (for dashboard auto-setup) ──────────────────────
+setup.kibana:
+  host: "${KIBANA_HOST:http://kibana:5601}"
+
+setup.dashboards.enabled: false   # enable to auto-import dashboards
+
+# ── ILM (Index Lifecycle Management) ───────────────────────
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "demon-pot"
+setup.ilm.pattern: "{now/d}-000001"
+setup.ilm.policy_name: "demon-pot-policy"
+setup.ilm.policy_file: "/usr/share/filebeat/ilm_policy.json"
+
+# ── Logging ─────────────────────────────────────────────────
+logging.level: info
+logging.to_files: false
+logging.to_stderr: true

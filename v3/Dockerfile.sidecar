@@ -1,0 +1,14 @@
+FROM python:3.11-alpine AS runtime
+
+LABEL description="Demon-Pot Threat Intelligence Sidecar"
+
+RUN apk add --no-cache libffi openssl && \
+    addgroup -S intel && adduser -S -G intel intel
+
+RUN pip install --no-cache-dir requests
+
+WORKDIR /app
+COPY --chown=intel:intel threat_intel.py .
+
+USER intel
+ENTRYPOINT ["python3", "threat_intel.py"]

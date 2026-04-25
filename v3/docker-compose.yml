@@ -1,0 +1,148 @@
+# ─────────────────────────────────────────────────────────────
+#  Demon-Pot — Docker Compose Stack
+#
+#  Services:
+#    honeypot     — SSH honeypot (main sensor)
+#    threat-intel — Sidecar: enriches IPs via AbuseIPDB/GreyNoise
+#    filebeat     — Ships logs to ELK / Splunk
+#
+#  Usage:
+#    docker compose up -d
+#    docker compose logs -f honeypot
+# ─────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+networks:
+  honeypot-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  honeypot-logs:
+    driver: local
+  honeypot-keys:
+    driver: local
+
+services:
+
+  # ── Main SSH Honeypot ─────────────────────────────────────
+  honeypot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: demon-pot:latest
+    container_name: demon-pot
+    restart: unless-stopped
+
+    ports:
+      - "${HONEYPOT_EXTERNAL_PORT:-2222}:2222"
+
+    environment:
+      HONEYPOT_PORT:     "2222"
+      HONEYPOT_BIND:     "0.0.0.0"
+      HONEYPOT_BASE_DIR: "/opt/ssh-honeypot"
+      HONEYPOT_RATE:     "${HONEYPOT_RATE:-10}"
+      HONEYPOT_WINDOW:   "${HONEYPOT_WINDOW:-60}"
+      HONEYPOT_IDLE:     "${HONEYPOT_IDLE:-120}"
+
+    volumes:
+      # Persistent logs shared with filebeat & threat-intel
+      - honeypot-logs:/opt/ssh-honeypot/logs
+      # Persistent RSA host key (survives container restarts)
+      - honeypot-keys:/opt/ssh-honeypot
+
+    networks:
+      honeypot-net:
+        ipv4_address: 172.28.0.10
+
+    # Read-only root filesystem — honeypot can only write to its log volume
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2222"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+
+  # ── Threat Intelligence Sidecar ──────────────────────────
+  threat-intel:
+    build:
+      context: .
+      dockerfile: Dockerfile.sidecar
+    image: demon-pot-intel:latest
+    container_name: demon-pot-intel
+    restart: unless-stopped
+    depends_on:
+      honeypot:
+        condition: service_healthy
+
+    environment:
+      ABUSEIPDB_KEY:     "${ABUSEIPDB_KEY:-}"
+      GREYNOISE_KEY:     "${GREYNOISE_KEY:-}"
+      LOG_DIR:           "/logs"
+      POLL_INTERVAL:     "${INTEL_POLL_INTERVAL:-30}"
+
+    volumes:
+      - honeypot-logs:/logs:ro   # Read-only access to honeypot logs
+      - ./intel_output:/output   # Enriched JSON output
+
+    networks:
+      - honeypot-net
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+
+  # ── Filebeat Log Forwarder ───────────────────────────────
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.11.0
+    container_name: demon-pot-filebeat
+    restart: unless-stopped
+    user: root
+    depends_on:
+      - honeypot
+
+    volumes:
+      - honeypot-logs:/logs:ro
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./filebeat/ilm_policy.json:/usr/share/filebeat/ilm_policy.json:ro
+
+    environment:
+      ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST:-http://elasticsearch:9200}"
+      ELASTICSEARCH_USER: "${ELASTICSEARCH_USER:-elastic}"
+      ELASTICSEARCH_PASS: "${ELASTICSEARCH_PASS:-changeme}"
+      KIBANA_HOST:        "${KIBANA_HOST:-http://kibana:5601}"
+
+    networks:
+      - honeypot-net
+
+    command: filebeat -e -strict.perms=false
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
