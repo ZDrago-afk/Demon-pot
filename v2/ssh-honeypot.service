@@ -1,0 +1,32 @@
+[Unit]
+Description=Demon-Pot SSH Honeypot
+Documentation=https://github.com/yourname/demon-pot
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=honeypot
+Group=honeypot
+WorkingDirectory=/opt/ssh-honeypot
+
+# Use the virtualenv Python
+ExecStart=/opt/ssh-honeypot/venv/bin/python3 /opt/ssh-honeypot/honeypot.py
+
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ssh-honeypot
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/ssh-honeypot/logs /opt/ssh-honeypot
+ProtectHome=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
